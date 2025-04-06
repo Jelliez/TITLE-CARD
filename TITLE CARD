@@ -1,0 +1,343 @@
+    local player = game.Players.LocalPlayer
+    local playerGui = player.PlayerGui
+    local UserInputService = game:GetService("UserInputService")
+    local mouse = player:GetMouse()
+
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local flying = false
+    local currentAnimTrack = nil  -- Variable to hold the animation track
+
+    -- Particle effect variables
+    local Test = game.ReplicatedStorage.Resources.Omni.Windd.Wind
+    local test = nil
+    local particleEmitterActive = false
+
+    -- Function to start the particle effect
+    local function startParticles()
+        test = Test:Clone()
+        test.Parent = player.Character:WaitForChild("HumanoidRootPart")
+
+        for _, child in ipairs(test:GetChildren()) do
+            if child:IsA("ParticleEmitter") then
+                child:Emit(15)
+                child.Enabled = true
+            end
+        end
+        particleEmitterActive = true
+    end
+
+    -- Function to stop the particle effect
+    local function stopParticles()
+        if test then
+            test:Destroy()
+            test = nil
+        end
+        particleEmitterActive = false
+    end
+   
+    -- Function to play the animation when the player follows the cursor
+    local function playAnimation()
+        -- Play the animation with ID 16597322398 only when following the cursor
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://78547941116306"
+        local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            local animTrack = humanoid:LoadAnimation(anim)
+            animTrack:Play()
+            animTrack:AdjustSpeed(0.8)  -- Adjust the speed to 0.3 to make it slower
+            currentAnimTrack = animTrack  -- Store the animation track for later stopping
+        end
+    end
+
+    -- Function to stop the animation if it's playing
+    local function stopAnimation()
+        if currentAnimTrack then
+            currentAnimTrack:Stop()
+            currentAnimTrack = nil  -- Clear the stored animation track
+        end
+    end
+
+    -- Function to make the player follow the cursor with smoother movement and rotation
+    local function followCursor()
+        if flying then return end  -- Prevent multiple activations
+
+        flying = true
+
+        -- Create a BodyVelocity to move the player
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.MaxForce = Vector3.new(10000000000000000000, 10000000000000000000, 10000000000000000000)  -- Very high force to ensure movement
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)  -- Start with no velocity
+        bodyVelocity.Parent = character:WaitForChild("HumanoidRootPart")
+
+        -- Play animation once the player starts moving
+        playAnimation()
+
+        -- Function to update the player's position to follow the mouse
+        local function updateMovement()
+            local smoothingFactor = 0.2  -- Adjust the smoothing factor for rotation and movement
+            while flying do
+                local mousePosition = mouse.Hit.p  -- Get the 3D position of the mouse
+                local humanoidRootPart = character.HumanoidRootPart
+
+                -- Smooth movement towards the mouse position
+                local direction = (mousePosition - humanoidRootPart.Position).unit
+                bodyVelocity.Velocity = direction * 75  -- Adjust speed by changing the multiplier
+
+                -- Smoothly rotate the character towards the mouse position (left-right and up-down)
+                local lookAtCFrame = CFrame.lookAt(humanoidRootPart.Position, mousePosition)
+
+                -- Manually smooth the rotation for X (horizontal) and Y (vertical) axes
+                local newCFrame = humanoidRootPart.CFrame:Lerp(lookAtCFrame, smoothingFactor)
+
+                -- Apply the smooth CFrame (horizontal and vertical look)
+                character:SetPrimaryPartCFrame(newCFrame)
+
+                wait(0.01)  -- Update every 0.01 second for smoother movement
+            end
+        end
+
+        -- Start the movement in a separate thread
+        coroutine.wrap(updateMovement)()
+    end
+
+    -- Function to stop flying and stop animation
+    local function stopFlying()
+        flying = false
+        -- Stop the flying movement
+        local bodyVelocity = character:FindFirstChild("HumanoidRootPart"):FindFirstChildOfClass("BodyVelocity")
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+        end
+        stopAnimation()  -- Stop the animation when stopping flying
+    end
+
+    -- Function to detect when the R key is pressed and toggle flying and particle effect
+    local function onRKeyPressed(input, gameProcessedEvent)
+        if gameProcessedEvent then return end  -- Ignore if the event is processed by the game (e.g., typing)
+
+        if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.R then
+            if flying then
+                stopFlying()  -- Stop flying and animation if already flying
+                stopParticles()  -- Stop particles
+            else
+                followCursor()  -- Start flying and animation
+                startParticles()  -- Start particles
+            end
+        end
+    end
+
+    -- Connect the input event to trigger the function
+    UserInputService.InputBegan:Connect(onRKeyPressed)
+
+    -- Function to update tool name in hotbar
+    local function updateToolName(buttonIndex, toolName)
+        local hotbar = playerGui:FindFirstChild("Hotbar")
+        if hotbar then
+            local backpack = hotbar:FindFirstChild("Backpack")
+            if backpack then
+                local hotbarFrame = backpack:FindFirstChild("Hotbar")
+                if hotbarFrame then
+                    local baseButton = hotbarFrame:FindFirstChild(tostring(buttonIndex)).Base
+                    if baseButton and baseButton.ToolName then
+                        baseButton.ToolName.Text = toolName
+                    end
+                end
+            end
+        end
+    end
+
+    -- Call to update tool names
+    updateToolName(1, "Impact Strike")
+    updateToolName(2, "Blitz Barage")
+    updateToolName(3, "Shockwave Push")
+    updateToolName(4, "Jaw-Breaker")
+
+    -- Function to set magic health text
+    local function findGuiAndSetText()
+        local screenGui = playerGui:FindFirstChild("ScreenGui")
+        if screenGui then
+            local magicHealthFrame = screenGui:FindFirstChild("MagicHealth")
+            if magicHealthFrame then
+                local textLabel = magicHealthFrame:FindFirstChild("TextLabel")
+                if textLabel then 
+                    textLabel.Text = "YOU DONT LIVE TO SEE TOMMOROW!"
+                end
+            end
+        end
+    end
+
+    -- Listen for descendants being added to the PlayerGui and set text
+    playerGui.DescendantAdded:Connect(findGuiAndSetText)
+    findGuiAndSetText()
+
+    -- Function to handle animations (same as your existing code)
+    local function onAnimationPlayed(animationTrack)
+        local animationId = tonumber(animationTrack.Animation.AnimationId:match("%d+"))
+        local animationReplacements = {
+            [10468665991] = "rbxassetid://16945573694",  -- Move 1
+            [10466974800] = "rbxassetid://16945550029",  -- Move 2
+            [10471336737] = "rbxassetid://12307656616",  -- Move 3
+            [12510170988] = "rbxassetid://12510170988",  -- Move 4
+            [12447707844] = "rbxassetid://15099756132",  -- Ult Awakening anim
+            [11343318134] = "rbxassetid://put your animation here",  -- Ult Move 1
+            [11365563255] = "rbxassetid://16431491215",  -- Ult Move 2
+            [12983333733] = "rbxassetid://12983333733",  -- Ult Move 3
+            [13927612951] = "rbxassetid://put your animation here",  -- Ult Move 4            
+            [10479335397] = "rbxassetid://17124063826",  -- Dash
+            [10469493270] = "rbxassetid://17325510002",  -- m1
+            [10469630950] = "rbxassetid://15240176873",  -- m1 2
+            [10469639222] = "rbxassetid://17325522388",  -- m1 3
+            [10469643643] = "rbxassetid://17325537719",  -- m1 4
+            [10470389827] = "rbxassetid://notheing",  -- block
+            [10470104242] = "rbxassetid://14351441234",  -- Downslam
+   
+             }
+        -- Replace animation if it's a matching one
+        local replacementId = animationReplacements[animationId]
+        if replacementId then
+            -- Stop all animations
+            for _, animTrack in pairs(game.Players.LocalPlayer.Character.Humanoid:GetPlayingAnimationTracks()) do
+                animTrack:Stop()
+            end
+
+            -- Play replacement animation
+            local anim = Instance.new("Animation")
+            anim.AnimationId = replacementId
+            local newAnimTrack = game.Players.LocalPlayer.Character.Humanoid:LoadAnimation(anim)
+            newAnimTrack:Play()
+
+            -- Adjust animation settings
+            if replacementId == "rbxassetid://16945550029" then  -- Move 2 (animation with asset ID)
+                newAnimTrack:AdjustSpeed(1)  -- Default speed for Move 2
+                newAnimTrack.TimePosition = 0
+                -- Stop the animation after 2.1 seconds
+                wait(1.9)
+                newAnimTrack:Stop()
+            elseif animationId == 10470104242 then  -- downslam               
+                newAnimTrack:AdjustSpeed(2)  -- Adjust the speed for downslam
+
+                wait(0.5)
+                newAnimTrack:Stop()
+            elseif animationId == 10468665991 then  -- Move 1
+                newAnimTrack:AdjustSpeed(1.27)  -- Adjust the speed for Move 1
+            elseif animationId == 11365563255 then  -- Ult Move 2
+                newAnimTrack:AdjustSpeed(0.2)  -- Adjust the speed for Ult Move 3
+            elseif replacementId == "rbxassetid://12832505612" then  -- Dash (added this part)
+                newAnimTrack:AdjustSpeed(1)  -- Default speed for Dash animation
+                newAnimTrack.TimePosition = 0  -- Start from the beginning
+                newAnimTrack:Play()
+
+                -- Wait for 1 second to make the dash animation last for 1 second
+                wait(1)  
+                newAnimTrack:Stop()  -- Stop the dash animation after 1 second
+            else
+                newAnimTrack:AdjustSpeed(1)  -- Default speed for other animations
+            end
+        end
+
+        -- Check if the ULT Awakening animation is being played (using its ID)
+        if animationId == 12447707844 then  -- ULT Awakening animation ID
+            -- Function to send the chat messages with delay to all players
+            local function sendChatMessages()
+                -- Send messages to everyone in the game using a server-side call
+                game:FindFirstChild("SayMessageRequest", true):FireServer("I don't care how strong you are...", "all")
+                wait(3)  -- Wait 3 seconds
+                game:FindFirstChild("SayMessageRequest", true):FireServer("I don't care how fast you are...", "all")
+                wait(3)  -- Wait 3 seconds
+                game:FindFirstChild("SayMessageRequest", true):FireServer("I can see the future...", "all")
+                wait(4)  -- Wait 4 seconds
+                game:FindFirstChild("SayMessageRequest", true):FireServer("You don't live to see tomorrow.", "all")
+            end
+
+            -- Call the function to start sending messages
+            sendChatMessages()
+        end
+    end
+
+    -- Connect function to AnimationPlayed event
+    local humanoid = game.Players.LocalPlayer.Character:WaitForChild("Humanoid")
+    humanoid.AnimationPlayed:Connect(onAnimationPlayed)
+
+    -- Function to handle BodyVelocity adjustments
+    local function onBodyVelocityAdded(bodyVelocity)
+        if bodyVelocity:IsA("BodyVelocity") then
+            bodyVelocity.Velocity = Vector3.new(bodyVelocity.Velocity.X, 0, bodyVelocity.Velocity.Z)
+        end
+    end
+
+    -- Monitor existing and new BodyVelocity instances
+    local character = game.Players.LocalPlayer.Character
+    for _, descendant in pairs(character:GetDescendants()) do
+        onBodyVelocityAdded(descendant)
+    end
+
+    character.DescendantAdded:Connect(onBodyVelocityAdded)
+
+    -- Handle new character creation
+    game.Players.LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+        character = newCharacter
+        for _, descendant in pairs(character:GetDescendants()) do
+            onBodyVelocityAdded(descendant)
+        end
+    end)
+
+    local Players = game:GetService("Players")
+
+    function morphToUser(userId)
+        local player = Players.LocalPlayer
+        local character = player.Character
+        if not character then return end
+        
+        local appearance = Players:GetCharacterAppearanceAsync(userId)
+        if not appearance then return end
+        
+        local toRemove = {
+            ["Accessory"] = true,
+            ["Shirt"] = true,
+            ["Pants"] = true,
+            ["CharacterMesh"] = true,
+            ["BodyColors"] = true
+        }
+        
+        for _, item in ipairs(character:GetChildren()) do
+            if toRemove[item.ClassName] then
+                item:Destroy()
+            end
+        end
+        
+        local face = character.Head:FindFirstChild("face")
+        if face then face:Destroy() end
+        
+        for _, item in ipairs(appearance:GetChildren()) do
+            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("BodyColors") then
+                item.Parent = character
+            elseif item:IsA("Accessory") then
+                character.Humanoid:AddAccessory(item)
+            elseif item.Name == character.Humanoid.RigType.Name then
+                local mesh = item:FindFirstChildOfClass("CharacterMesh")
+                if mesh then mesh.Parent = character end
+            end
+        end
+        
+        local newFace = appearance:FindFirstChild("face")
+        if newFace then
+            newFace.Parent = character.Head
+        else
+            local defaultFace = Instance.new("Decal")
+            defaultFace.Name = "face"
+            defaultFace.Face = "Front"
+            defaultFace.Texture = "rbxasset://textures/face.png"
+            defaultFace.Parent = character.Head
+        end
+        
+        character.Parent = nil
+        character.Parent = workspace
+    end
+
+    morphToUser(3745180574)
+
+    repeat
+        wait(0.1)
+        game.Players.LocalPlayer.Character.Humanoid.AutoRotate = true
+    until false
